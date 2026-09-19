@@ -1,42 +1,52 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import { io } from "socket.io-client";
+
 import "./CardTable.css";
 
 const BACKEND_URL = "http://localhost:3001";
 
+const SUITS = [
+  "♠",
+  "♥",
+  "♦",
+  "♣",
+];
+
+const RANKS = [
+  "A",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "J",
+  "Q",
+  "K",
+];
+
 function Card({
   card,
   onPointerDown,
-  dragging = false,
-  dragX,
-  dragY,
-  style
+  style,
 }) {
-  if (!card) {
-    return null;
-  }
+  const isRed =
+    card.suit === "♥" ||
+    card.suit === "♦";
 
   return (
     <div
-      className={`card ${
-        card.suit === "♥" ||
-        card.suit === "♦"
-          ? "red"
-          : ""
-      } ${
-        dragging
-          ? "dragging-card"
-          : ""
-      }`}
+      className={`card ${isRed ? "red" : ""}`}
+      style={style}
       onPointerDown={onPointerDown}
-      style={
-        dragging
-          ? {
-              left: dragX,
-              top: dragY
-            }
-          : style
-      }
     >
       <div>{card.rank}</div>
       <div>{card.suit}</div>
@@ -44,211 +54,356 @@ function Card({
   );
 }
 
-/* =========================
-   ROOM SCREEN
-========================= */
-
-function RoomScreen({
-  onConnected
+function SetupScreen({
+  onCreateGame,
+  onBack,
 }) {
-  const [roomId, setRoomId] =
-    useState("");
-
   const [playerName, setPlayerName] =
     useState("");
 
-  const [error, setError] =
-    useState("");
+  const [playerCount, setPlayerCount] =
+    useState(2);
 
-  const [loading, setLoading] =
-    useState(false);
+  const [selectedCards, setSelectedCards] =
+    useState(() => {
+      const result = {};
 
-  const createGame =
-    async () => {
-      const name =
-        playerName.trim();
+      SUITS.forEach((suit) => {
+        RANKS.forEach((rank) => {
+          result[`${suit}-${rank}`] = true;
+        });
+      });
 
-      if (!name) {
-        setError(
-          "Please enter your name"
-        );
-        return;
-      }
+      return result;
+    });
 
-      try {
-        setLoading(true);
-        setError("");
+  const [error, setError] = useState("");
 
-        const response =
-          await fetch(
-            `${BACKEND_URL}/api/games`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-              body: JSON.stringify({
-                name
-              })
-            }
-          );
+  const toggleCard = (suit, rank) => {
+    const key = `${suit}-${rank}`;
 
-        const data =
-          await response.json();
+    setSelectedCards((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  };
 
-        if (!response.ok) {
-          throw new Error(
-            data.error ||
-              "Failed to create game"
-          );
+  const selectSuit = (suit, selected) => {
+    setSelectedCards((current) => {
+      const next = {
+        ...current,
+      };
+
+      RANKS.forEach((rank) => {
+        next[`${suit}-${rank}`] = selected;
+      });
+
+      return next;
+    });
+  };
+
+  const createGame = () => {
+    setError("");
+
+    if (!playerName.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+
+    const playingCards = [];
+
+    SUITS.forEach((suit) => {
+      RANKS.forEach((rank) => {
+        const key = `${suit}-${rank}`;
+
+        if (selectedCards[key]) {
+          playingCards.push({
+            suit,
+            rank,
+          });
         }
+      });
+    });
 
-        onConnected(data);
-      } catch (err) {
-        setError(
-          err.message ||
-            "Failed to create game"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (playingCards.length === 0) {
+      setError("Select at least one card.");
+      return;
+    }
 
-  const joinGame =
-    async () => {
-      const id =
-        roomId
-          .trim()
-          .toUpperCase();
+    if (playingCards.length % playerCount !== 0) {
+      setError(
+        `${playingCards.length} cards cannot be divided equally among ${playerCount} players.`
+      );
+      return;
+    }
 
-      const name =
-        playerName.trim();
-
-      if (!name) {
-        setError(
-          "Please enter your name"
-        );
-        return;
-      }
-
-      if (!id) {
-        setError(
-          "Please enter a room ID"
-        );
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError("");
-
-        const response =
-          await fetch(
-            `${BACKEND_URL}/api/games/${id}/join`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-              body: JSON.stringify({
-                name
-              })
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.error ||
-              "Failed to join game"
-          );
-        }
-
-        onConnected(data);
-      } catch (err) {
-        setError(
-          err.message ||
-            "Failed to join game"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    onCreateGame({
+      name: playerName.trim(),
+      playerCount,
+      playingCards,
+    });
+  };
 
   return (
     <div className="room-screen">
-      <h1>Card Game</h1>
+      <div className="setup-panel">
+        <h1>Create Game</h1>
 
-      <input
-        value={playerName}
-        onChange={(event) =>
-          setPlayerName(
-            event.target.value
-          )
-        }
-        placeholder="Enter your name"
-        maxLength={20}
-      />
+        <div className="setup-section">
+          <label>Your name</label>
 
-      <button
-        onClick={createGame}
-        disabled={loading}
-      >
-        Create Game
-      </button>
-
-      <div className="room-divider">
-        OR
-      </div>
-
-      <input
-        value={roomId}
-        onChange={(event) =>
-          setRoomId(
-            event.target.value
-          )
-        }
-        placeholder="Enter Room ID"
-        maxLength={6}
-      />
-
-      <button
-        onClick={joinGame}
-        disabled={loading}
-      >
-        Join Game
-      </button>
-
-      {error && (
-        <div className="room-error">
-          {error}
+          <input
+            value={playerName}
+            onChange={(event) =>
+              setPlayerName(event.target.value)
+            }
+            placeholder="Enter your name"
+          />
         </div>
-      )}
+
+        <div className="setup-section">
+          <label>Number of players</label>
+
+          <div className="player-count-options">
+            {[2, 3, 4].map((count) => (
+              <button
+                key={count}
+                className={
+                  playerCount === count
+                    ? "selected"
+                    : ""
+                }
+                onClick={() =>
+                  setPlayerCount(count)
+                }
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setup-section">
+          <div className="section-heading">
+            <strong>Playing cards</strong>
+
+            <span>
+              Cards are distributed equally.
+            </span>
+          </div>
+
+          {SUITS.map((suit) => {
+            const allSelected = RANKS.every(
+              (rank) =>
+                selectedCards[
+                  `${suit}-${rank}`
+                ]
+            );
+
+            return (
+              <div
+                className="suit-section"
+                key={suit}
+              >
+                <button
+                  className={`suit-title ${
+                    suit === "♥" ||
+                    suit === "♦"
+                      ? "red"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    selectSuit(
+                      suit,
+                      !allSelected
+                    )
+                  }
+                >
+                  <span>{suit}</span>
+
+                  <span>
+                    {allSelected
+                      ? "Deselect all"
+                      : "Select all"}
+                  </span>
+                </button>
+
+                <div className="card-selector">
+                  {RANKS.map((rank) => {
+                    const key =
+                      `${suit}-${rank}`;
+
+                    return (
+                      <button
+                        key={key}
+                        className={`card-option ${
+                          selectedCards[key]
+                            ? "selected"
+                            : ""
+                        } ${
+                          suit === "♥" ||
+                          suit === "♦"
+                            ? "red"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          toggleCard(
+                            suit,
+                            rank
+                          )
+                        }
+                      >
+                        {rank}
+                        {suit}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {error && (
+          <div className="room-error">
+            {error}
+          </div>
+        )}
+
+        <button
+          className="create-game-button"
+          onClick={createGame}
+        >
+          Create Game
+        </button>
+
+        <button
+          className="back-button"
+          onClick={onBack}
+        >
+          Back
+        </button>
+      </div>
     </div>
   );
 }
 
-/* =========================
-   PLAYER
-========================= */
+function JoinScreen({
+  onJoinGame,
+  onBack,
+}) {
+  const [name, setName] = useState("");
+  const [roomId, setRoomId] = useState("");
+  const [error, setError] = useState("");
+
+  const joinGame = () => {
+    setError("");
+
+    if (!name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+
+    if (!roomId.trim()) {
+      setError("Please enter the room ID.");
+      return;
+    }
+
+    onJoinGame({
+      name: name.trim(),
+      roomId: roomId.trim().toUpperCase(),
+    });
+  };
+
+  return (
+    <div className="room-screen">
+      <div className="setup-panel join-panel">
+        <h1>Join Game</h1>
+
+        <div className="setup-section">
+          <label>Your name</label>
+
+          <input
+            value={name}
+            onChange={(event) =>
+              setName(event.target.value)
+            }
+            placeholder="Enter your name"
+          />
+        </div>
+
+        <div className="setup-section">
+          <label>Room ID</label>
+
+          <input
+            value={roomId}
+            onChange={(event) =>
+              setRoomId(event.target.value)
+            }
+            placeholder="Enter room ID"
+          />
+        </div>
+
+        {error && (
+          <div className="room-error">
+            {error}
+          </div>
+        )}
+
+        <button
+          className="create-game-button"
+          onClick={joinGame}
+        >
+          Join Game
+        </button>
+
+        <button
+          className="back-button"
+          onClick={onBack}
+        >
+          Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RoomScreen({
+  onCreate,
+  onJoin,
+}) {
+  return (
+    <div className="room-screen">
+      <h1>Card Game</h1>
+
+      <button onClick={onCreate}>
+        Create Game
+      </button>
+
+      <button onClick={onJoin}>
+        Join Game
+      </button>
+    </div>
+  );
+}
 
 function Player({
   player,
-  isCurrentPlayer,
-  hand,
-  handRef,
-  onHandPointerDown
+  position,
+  isCurrent,
 }) {
-  return (
-    <div className="player">
-      <div className="player-name">
-        {player.name}
+  if (position === "bottom") {
+    return null;
+  }
 
-        {isCurrentPlayer && (
+  return (
+    <div
+      className={`player ${position}-player`}
+    >
+      <div className="player-name">
+        {player.name || "Waiting..."}
+
+        {isCurrent && (
           <span className="you-label">
             {" "}
             (You)
@@ -256,26 +411,12 @@ function Player({
         )}
       </div>
 
-      {isCurrentPlayer ? (
-        <div
-          ref={handRef}
-          className="hand"
-        >
-          {hand.map((card) => (
-            <Card
-              key={card.id}
-              card={card}
-              onPointerDown={(event) =>
-                onHandPointerDown(
-                  event,
-                  card
-                )
-              }
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="opponent-hand">
+      <div className="player-score">
+        {player.score ?? 0}
+      </div>
+
+      <div className="opponent-hand">
+        {player.cardCount > 0 ? (
           <div className="grouped-cards">
             <div className="stack-card stack-1" />
             <div className="stack-card stack-2" />
@@ -286,556 +427,879 @@ function Player({
               </span>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <span className="no-cards">
+            No cards
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
-/* =========================
-   GAME TABLE
-========================= */
+function ScorePanel({
+  players,
+  onUpdateScore,
+  onStartNewGame,
+  scoreLogs,
+}) {
+  const [changes, setChanges] = useState({});
+  const [reasons, setReasons] = useState({});
+
+  const updateChange = (id, value) => {
+    setChanges((current) => ({
+      ...current,
+      [id]: value,
+    }));
+  };
+
+  const updateReason = (id, value) => {
+    setReasons((current) => ({
+      ...current,
+      [id]: value,
+    }));
+  };
+
+  const submitChange = (id) => {
+    const change = Number(changes[id]);
+
+    if (
+      !Number.isFinite(change) ||
+      change === 0
+    ) {
+      return;
+    }
+
+    onUpdateScore({
+      targetPlayerId: id,
+      change,
+      reason: reasons[id] || "",
+    });
+
+    setChanges((current) => ({
+      ...current,
+      [id]: "",
+    }));
+
+    setReasons((current) => ({
+      ...current,
+      [id]: "",
+    }));
+  };
+
+  return (
+    <div className="score-panel">
+      <div className="score-panel-header">
+        <strong>Scores</strong>
+
+        <button
+          className="new-game-button"
+          onClick={onStartNewGame}
+        >
+          Start New Game
+        </button>
+      </div>
+
+      <div className="score-list">
+        {players.map((player) => (
+          <div
+            className="score-row"
+            key={player.id}
+          >
+            <div className="score-player-name">
+              {player.name || "Waiting..."}
+            </div>
+
+            <div className="score-value">
+              {player.score ?? 0}
+            </div>
+
+            <input
+              className="score-change-input"
+              type="number"
+              placeholder="+/-"
+              value={
+                changes[player.id] ?? ""
+              }
+              onChange={(event) =>
+                updateChange(
+                  player.id,
+                  event.target.value
+                )
+              }
+            />
+
+            <input
+              className="score-reason-input"
+              placeholder="Reason"
+              value={
+                reasons[player.id] ?? ""
+              }
+              onChange={(event) =>
+                updateReason(
+                  player.id,
+                  event.target.value
+                )
+              }
+            />
+
+            <button
+              className="score-update-button"
+              onClick={() =>
+                submitChange(player.id)
+              }
+            >
+              Update
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="score-log-section">
+        <strong>Score Log</strong>
+
+        <div className="score-log">
+          {scoreLogs.length === 0 ? (
+            <div className="empty-log">
+              No score changes yet.
+            </div>
+          ) : (
+            [...scoreLogs]
+              .reverse()
+              .map((log) => (
+                <div
+                  className="log-item"
+                  key={log.id}
+                >
+                  <div>
+                    <strong>
+                      {log.changedByName}
+                    </strong>{" "}
+                    changed{" "}
+                    <strong>
+                      {log.targetPlayerName}
+                    </strong>
+                    's score
+                  </div>
+
+                  <div className="log-score">
+                    {log.oldScore} →{" "}
+                    {log.newScore} (
+                    {log.change > 0
+                      ? "+"
+                      : ""}
+                    {log.change})
+                  </div>
+
+                  {log.reason && (
+                    <div className="log-reason">
+                      {log.reason}
+                    </div>
+                  )}
+
+                  <div className="log-time">
+                    {new Date(
+                      log.timestamp
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GameTable({
-  gameData,
-  socket
+  roomId,
+  playerId,
+  onLeave,
 }) {
-  const [players, setPlayers] =
-    useState([]);
+  const [gameState, setGameState] =
+    useState(null);
 
-  const [myHand, setMyHand] =
-    useState([]);
-
-  const [boardCards, setBoardCards] =
-    useState([]);
-
-  const [error, setError] =
-    useState("");
+  const [showScores, setShowScores] =
+    useState(false);
 
   const [dragging, setDragging] =
     useState(null);
 
-  const boardRef =
-    useRef(null);
+  const socketRef = useRef(null);
+  const boardRef = useRef(null);
+  const handRef = useRef(null);
 
-  const handRef =
-    useRef(null);
-
-  /* =========================
-     RECEIVE GAME STATE
-  ========================= */
+  /*
+   * IMPORTANT:
+   *
+   * Do not use React state as the source of
+   * truth while a pointer drag is happening.
+   *
+   * React state updates are asynchronous.
+   *
+   * This ref always contains the current
+   * drag information, including offsetX/offsetY.
+   */
+  const draggingRef = useRef(null);
 
   useEffect(() => {
-    if (!socket) {
-      return;
-    }
+    const socket = io(BACKEND_URL);
 
-    const handleGameState =
-      (state) => {
-        setPlayers(
-          state.players || []
-        );
+    socketRef.current = socket;
 
-        setMyHand(
-          state.myHand || []
-        );
+    socket.emit("join-game", {
+      roomId,
+      playerId,
+    });
 
-        setBoardCards(
-          state.boardCards || []
-        );
-      };
+    socket.on("game-state", (state) => {
+      setGameState(state);
+    });
 
-    const handleError =
-      (message) => {
-        setError(message);
-      };
-
-    socket.on(
-      "game-state",
-      handleGameState
-    );
-
-    socket.on(
-      "error-message",
-      handleError
-    );
+    socket.on("error-message", (message) => {
+      alert(message);
+    });
 
     return () => {
-      socket.off(
-        "game-state",
-        handleGameState
-      );
-
-      socket.off(
-        "error-message",
-        handleError
-      );
+      socket.disconnect();
+      socketRef.current = null;
+      draggingRef.current = null;
     };
-  }, [socket]);
+  }, [roomId, playerId]);
 
-  /* =========================
-     FIND PLAYERS
-  ========================= */
+  const startDrag = (
+    event,
+    card,
+    source
+  ) => {
+    event.preventDefault();
 
-  const currentPlayer =
-    players.find(
-      (player) =>
-        player.id ===
-        gameData.player.id
-    );
+    const element =
+      event.currentTarget;
 
-  const otherPlayers =
-    players.filter(
-      (player) =>
-        player.id !==
-        gameData.player.id
-    );
+    const rect =
+      element.getBoundingClientRect();
 
-  const topPlayer =
-    otherPlayers.find(
-      (player) =>
-        player.id ===
-        (gameData.player.id + 2) % 4
-    );
+    const offsetX =
+      event.clientX - rect.left;
 
-  const leftPlayer =
-    otherPlayers.find(
-      (player) =>
-        player.id ===
-        (gameData.player.id + 3) % 4
-    );
+    const offsetY =
+      event.clientY - rect.top;
 
-  const rightPlayer =
-    otherPlayers.find(
-      (player) =>
-        player.id ===
-        (gameData.player.id + 1) % 4
-    );
+    const drag = {
+      card,
+      source,
+      offsetX,
+      offsetY,
+      x: event.clientX,
+      y: event.clientY,
+    };
 
-  /* =========================
-     START DRAG FROM HAND
-  ========================= */
+    /*
+     * Store the actual drag object in a ref.
+     * This value cannot become stale/null
+     * between pointermove and pointerup.
+     */
+    draggingRef.current = drag;
 
-  const handleHandPointerDown =
-    (event, card) => {
-      event.preventDefault();
+    /*
+     * State is only used to make the dragged
+     * card visible on screen.
+     */
+    setDragging({
+      ...drag,
+    });
+
+    const handleMove = (moveEvent) => {
+      const currentDrag =
+        draggingRef.current;
+
+      if (!currentDrag) {
+        return;
+      }
+
+      const updatedDrag = {
+        ...currentDrag,
+        x: moveEvent.clientX,
+        y: moveEvent.clientY,
+      };
+
+      draggingRef.current =
+        updatedDrag;
 
       setDragging({
-        source: "hand",
-        card,
-        x: event.clientX,
-        y: event.clientY
+        ...updatedDrag,
       });
     };
 
-  /* =========================
-     START DRAG FROM BOARD
-  ========================= */
+    const handleUp = (upEvent) => {
+      document.removeEventListener(
+        "pointermove",
+        handleMove
+      );
 
-  const handleBoardPointerDown =
-    (event, card) => {
-      event.preventDefault();
+      document.removeEventListener(
+        "pointerup",
+        handleUp
+      );
 
-      setDragging({
-        source: "board",
-        card,
-        x: event.clientX,
-        y: event.clientY
-      });
+      const currentDrag =
+        draggingRef.current;
+
+      if (!currentDrag) {
+        setDragging(null);
+        return;
+      }
+
+      finishDrag(
+        currentDrag,
+        upEvent
+      );
+
+      draggingRef.current = null;
+      setDragging(null);
     };
 
-  /* =========================
-     DRAGGING
-  ========================= */
+    document.addEventListener(
+      "pointermove",
+      handleMove
+    );
 
-  useEffect(() => {
-    if (!dragging) {
+    document.addEventListener(
+      "pointerup",
+      handleUp
+    );
+  };
+
+  const finishDrag = (
+    drag,
+    event
+  ) => {
+    const board =
+      boardRef.current;
+
+    const hand =
+      handRef.current;
+
+    if (!board) {
       return;
     }
 
-    const handlePointerMove =
-      (event) => {
-        setDragging(
-          (current) => {
-            if (!current) {
-              return null;
-            }
+    /*
+     * Read everything from the drag ref/object.
+     * Never read offsetX/offsetY from React state.
+     */
+    const {
+      card,
+      source,
+      offsetX,
+      offsetY,
+    } = drag;
 
-            return {
-              ...current,
-              x: event.clientX,
-              y: event.clientY
-            };
+    const boardRect =
+      board.getBoundingClientRect();
+
+    const handRect =
+      hand?.getBoundingClientRect();
+
+    const insideBoard =
+      event.clientX >= boardRect.left &&
+      event.clientX <= boardRect.right &&
+      event.clientY >= boardRect.top &&
+      event.clientY <= boardRect.bottom;
+
+    const insideHand =
+      handRect &&
+      event.clientX >= handRect.left &&
+      event.clientX <= handRect.right &&
+      event.clientY >= handRect.top &&
+      event.clientY <= handRect.bottom;
+
+    /*
+     * CARD FROM HAND
+     *
+     * It can ONLY be dropped on the board.
+     */
+    if (source === "hand") {
+      if (!insideBoard) {
+        return;
+      }
+
+      const x =
+        event.clientX -
+        boardRect.left -
+        offsetX;
+
+      const y =
+        event.clientY -
+        boardRect.top -
+        offsetY;
+
+      if (!socketRef.current) {
+        return;
+      }
+
+      socketRef.current.emit(
+        "play-card",
+        {
+          roomId,
+          playerId,
+          cardId: card.id,
+          x,
+          y,
+        }
+      );
+
+      return;
+    }
+
+    /*
+     * CARD ALREADY ON BOARD
+     *
+     * It can:
+     * 1. Stay/move anywhere inside the board.
+     * 2. Be dragged back to the player's hand.
+     * 3. If dropped somewhere else, it stays
+     *    at its previous server position.
+     */
+    if (source === "board") {
+      if (insideHand) {
+        if (!socketRef.current) {
+          return;
+        }
+
+        socketRef.current.emit(
+          "return-card",
+          {
+            roomId,
+            playerId,
+            cardId: card.id,
           }
         );
-      };
 
-    const handlePointerUp =
-      (event) => {
-        const board =
-          boardRef.current?.getBoundingClientRect();
+        return;
+      }
 
-        const hand =
-          handRef.current?.getBoundingClientRect();
+      if (insideBoard) {
+        const x =
+          event.clientX -
+          boardRect.left -
+          offsetX;
 
-        /* =========================
-           CHECK BOARD DROP
-        ========================= */
+        const y =
+          event.clientY -
+          boardRect.top -
+          offsetY;
 
-        const droppedOnBoard =
-          board &&
-          event.clientX >=
-            board.left &&
-          event.clientX <=
-            board.right &&
-          event.clientY >=
-            board.top &&
-          event.clientY <=
-            board.bottom;
-
-        /* =========================
-           CHECK HAND DROP
-        ========================= */
-
-        const droppedOnHand =
-          hand &&
-          event.clientX >=
-            hand.left &&
-          event.clientX <=
-            hand.right &&
-          event.clientY >=
-            hand.top &&
-          event.clientY <=
-            hand.bottom;
-
-        /* =========================
-           HAND -> BOARD
-        ========================= */
-
-        if (
-          dragging.source ===
-            "hand" &&
-          droppedOnBoard
-        ) {
-          /*
-           * IMPORTANT:
-           *
-           * Convert screen coordinates
-           * into coordinates relative
-           * to the game board.
-           */
-
-          const x =
-            event.clientX -
-            board.left -
-            32;
-
-          const y =
-            event.clientY -
-            board.top -
-            47;
-
-          socket.emit(
-            "play-card",
-            {
-              cardId:
-                dragging.card.id,
-              x,
-              y
-            }
-          );
-
-          setDragging(null);
+        if (!socketRef.current) {
           return;
         }
 
-        /* =========================
-           BOARD -> MY HAND
-        ========================= */
+        socketRef.current.emit(
+          "move-card",
+          {
+            roomId,
+            cardId: card.id,
+            x,
+            y,
+          }
+        );
 
-        if (
-          dragging.source ===
-            "board" &&
-          droppedOnHand
-        ) {
-          socket.emit(
-            "return-card",
-            {
-              cardId:
-                dragging.card.id
-            }
-          );
+        return;
+      }
 
-          setDragging(null);
-          return;
-        }
+      /*
+       * Dropped outside both board and hand.
+       *
+       * Do nothing. Since the server never
+       * received a move, the card remains at
+       * its previous position.
+       */
+    }
+  };
 
-        /* =========================
-           BOARD -> BOARD
-        ========================= */
+  const updateScore = ({
+    targetPlayerId,
+    change,
+    reason,
+  }) => {
+    if (!socketRef.current) {
+      return;
+    }
 
-        if (
-          dragging.source ===
-            "board" &&
-          droppedOnBoard
-        ) {
-          /*
-           * Again convert from
-           * screen coordinates to
-           * board-relative coordinates.
-           */
-
-          const x =
-            event.clientX -
-            board.left -
-            32;
-
-          const y =
-            event.clientY -
-            board.top -
-            47;
-
-          socket.emit(
-            "move-card",
-            {
-              cardId:
-                dragging.card.id,
-              x,
-              y
-            }
-          );
-
-          setDragging(null);
-          return;
-        }
-
-        /*
-         * Dropped outside a valid
-         * destination.
-         */
-        setDragging(null);
-      };
-
-    window.addEventListener(
-      "pointermove",
-      handlePointerMove
+    socketRef.current.emit(
+      "update-score",
+      {
+        roomId,
+        playerId,
+        targetPlayerId,
+        change,
+        reason,
+      }
     );
+  };
 
-    window.addEventListener(
-      "pointerup",
-      handlePointerUp
-    );
-
-    return () => {
-      window.removeEventListener(
-        "pointermove",
-        handlePointerMove
+  const startNewGame = () => {
+    const confirmed =
+      window.confirm(
+        "Start a new game? The cards will be shuffled and redistributed, and all scores will reset to 0."
       );
 
-      window.removeEventListener(
-        "pointerup",
-        handlePointerUp
-      );
-    };
-  }, [
-    dragging,
-    socket
-  ]);
+    if (!confirmed) {
+      return;
+    }
+
+    if (!socketRef.current) {
+      return;
+    }
+
+    socketRef.current.emit(
+      "new-game",
+      {
+        roomId,
+      }
+    );
+  };
+
+  if (!gameState) {
+    return (
+      <div className="loading-screen">
+        Connecting...
+      </div>
+    );
+  }
+
+  const currentIndex =
+    gameState.players.findIndex(
+      (player) =>
+        player.id === playerId
+    );
+
+  const getPosition = (player) => {
+    const relative =
+      (player.id -
+        currentIndex +
+        gameState.players.length) %
+      gameState.players.length;
+
+    if (relative === 0) {
+      return "bottom";
+    }
+
+    if (gameState.players.length === 2) {
+      return "top";
+    }
+
+    if (gameState.players.length === 3) {
+      return relative === 1
+        ? "left"
+        : "right";
+    }
+
+    if (relative === 1) {
+      return "left";
+    }
+
+    if (relative === 2) {
+      return "top";
+    }
+
+    return "right";
+  };
+
+  const currentPlayer =
+    gameState.players.find(
+      (player) =>
+        player.id === playerId
+    );
 
   return (
     <div className="game">
-
-      {/* =========================
-          ROOM INFO
-      ========================= */}
-
       <div className="room-info">
-        <span>
-          Room:
-        </span>
+        <span>Room:</span>
 
-        <strong>
-          {gameData.roomId}
-        </strong>
+        <strong>{roomId}</strong>
 
         <span>
-          You:{" "}
-          {gameData.player.name}
+          Game #{gameState.gameNumber}
         </span>
+
+        <button
+          onClick={() =>
+            setShowScores(
+              (current) => !current
+            )
+          }
+        >
+          Scores
+        </button>
+
+        <button onClick={onLeave}>
+          Leave
+        </button>
       </div>
 
-      {error && (
-        <div className="game-error">
-          {error}
-        </div>
+      {showScores && (
+        <ScorePanel
+          players={gameState.players}
+          onUpdateScore={updateScore}
+          onStartNewGame={startNewGame}
+          scoreLogs={
+            gameState.scoreLogs || []
+          }
+        />
       )}
 
-      {/* =========================
-          BOARD
-      ========================= */}
+      {gameState.players.map(
+        (player) => (
+          <Player
+            key={player.id}
+            player={player}
+            position={getPosition(
+              player
+            )}
+            isCurrent={
+              player.id === playerId
+            }
+          />
+        )
+      )}
 
       <div
         ref={boardRef}
         className="game-board"
       >
-        {boardCards.map(
+        {gameState.boardCards.map(
           (card) => (
             <Card
               key={card.id}
               card={card}
-              onPointerDown={(event) =>
-                handleBoardPointerDown(
-                  event,
-                  card
-                )
-              }
               style={{
                 left: card.x,
-                top: card.y
+                top: card.y,
               }}
+              onPointerDown={(event) =>
+                startDrag(
+                  event,
+                  card,
+                  "board"
+                )
+              }
             />
           )
         )}
       </div>
 
-      {/* =========================
-          TOP PLAYER
-      ========================= */}
+      <div className="bottom-player">
+        <div className="player-name">
+          {currentPlayer?.name}
 
-      {topPlayer && (
-        <div className="top-player">
-          <Player
-            player={topPlayer}
-            isCurrentPlayer={false}
-            hand={[]}
-            onHandPointerDown={() => {}}
-          />
+          <span className="you-label">
+            {" "}
+            (You)
+          </span>
+
+          <span className="my-score">
+            {" "}
+            Score:{" "}
+            {currentPlayer?.score ?? 0}
+          </span>
         </div>
-      )}
 
-      {/* =========================
-          LEFT PLAYER
-      ========================= */}
-
-      {leftPlayer && (
-        <div className="left-player">
-          <Player
-            player={leftPlayer}
-            isCurrentPlayer={false}
-            hand={[]}
-            onHandPointerDown={() => {}}
-          />
+        <div
+          ref={handRef}
+          className="hand"
+        >
+          {gameState.hand.map(
+            (card) => (
+              <Card
+                key={card.id}
+                card={card}
+                onPointerDown={(event) =>
+                  startDrag(
+                    event,
+                    card,
+                    "hand"
+                  )
+                }
+              />
+            )
+          )}
         </div>
-      )}
-
-      {/* =========================
-          RIGHT PLAYER
-      ========================= */}
-
-      {rightPlayer && (
-        <div className="right-player">
-          <Player
-            player={rightPlayer}
-            isCurrentPlayer={false}
-            hand={[]}
-            onHandPointerDown={() => {}}
-          />
-        </div>
-      )}
-
-      {/* =========================
-          CURRENT PLAYER
-      ========================= */}
-
-      {currentPlayer && (
-        <div className="bottom-player">
-          <Player
-            player={currentPlayer}
-            isCurrentPlayer={true}
-            hand={myHand}
-            handRef={handRef}
-            onHandPointerDown={
-              handleHandPointerDown
-            }
-          />
-        </div>
-      )}
-
-      {/* =========================
-          DRAGGED CARD
-      ========================= */}
-
+      </div>
+      
       {dragging && (
         <Card
           card={dragging.card}
-          dragging={true}
-          dragX={
-            dragging.x - 32
-          }
-          dragY={
-            dragging.y - 47
-          }
+          style={{
+            position: "fixed",
+            left:
+              dragging.x -
+              dragging.offsetX,
+            top:
+              dragging.y -
+              dragging.offsetY,
+            margin: 0,
+            zIndex: 10000,
+            pointerEvents: "none",
+            transform:
+              "rotate(4deg) scale(1.05)",
+            boxShadow:
+              "0 12px 25px rgba(0,0,0,0.45)",
+          }}
         />
       )}
     </div>
   );
 }
 
-/* =========================
-   MAIN COMPONENT
-========================= */
-
 export default function CardTable() {
-  const [gameData, setGameData] =
+  const [screen, setScreen] =
+    useState("room");
+
+  const [roomId, setRoomId] =
     useState(null);
 
-  const [socket, setSocket] =
+  const [playerId, setPlayerId] =
     useState(null);
 
-  const connectToGame =
-    (data) => {
-      const newSocket =
-        io(BACKEND_URL);
-
-      newSocket.emit(
-        "join-game",
+  const createGame = async ({
+    name,
+    playerCount,
+    playingCards,
+  }) => {
+    try {
+      const response = await fetch(
+        `${BACKEND_URL}/api/games`,
         {
-          roomId:
-            data.roomId,
-          token:
-            data.player.token
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            name,
+            playerCount,
+            playingCards,
+          }),
         }
       );
 
-      setSocket(newSocket);
-      setGameData(data);
-    };
+      const data =
+        await response.json();
 
-  useEffect(() => {
-    return () => {
-      if (socket) {
-        socket.disconnect();
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Failed to create game"
+        );
+
+        return;
       }
-    };
-  }, [socket]);
 
-  if (
-    !gameData ||
-    !socket
-  ) {
+      setRoomId(data.roomId);
+      setPlayerId(data.playerId);
+      setScreen("game");
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Could not connect to backend."
+      );
+    }
+  };
+
+  const joinGame = async ({
+    name,
+    roomId,
+  }) => {
+    try {
+      const response = await fetch(
+        `${BACKEND_URL}/api/games/${roomId}/join`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            name,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Failed to join game"
+        );
+
+        return;
+      }
+
+      setRoomId(data.roomId);
+      setPlayerId(data.playerId);
+      setScreen("game");
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Could not connect to backend."
+      );
+    }
+  };
+
+  if (screen === "create") {
     return (
-      <RoomScreen
-        onConnected={
-          connectToGame
+      <SetupScreen
+        onCreateGame={createGame}
+        onBack={() =>
+          setScreen("room")
         }
       />
     );
   }
 
+  if (screen === "join") {
+    return (
+      <JoinScreen
+        onJoinGame={joinGame}
+        onBack={() =>
+          setScreen("room")
+        }
+      />
+    );
+  }
+
+  if (screen === "game") {
+    return (
+      <GameTable
+        roomId={roomId}
+        playerId={playerId}
+        onLeave={() => {
+          setRoomId(null);
+          setPlayerId(null);
+          setScreen("room");
+        }}
+      />
+    );
+  }
+
   return (
-    <GameTable
-      gameData={gameData}
-      socket={socket}
+    <RoomScreen
+      onCreate={() =>
+        setScreen("create")
+      }
+      onJoin={() =>
+        setScreen("join")
+      }
     />
   );
 }
