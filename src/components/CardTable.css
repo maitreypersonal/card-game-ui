@@ -1,0 +1,410 @@
+/* =========================
+   ROOM SCREEN
+========================= */
+
+.room-screen {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  background: #14532d;
+  color: white;
+}
+
+.room-screen h1 {
+  margin-bottom: 20px;
+}
+
+.room-screen input {
+  width: 250px;
+  padding: 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 16px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.room-screen button {
+  width: 250px;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.room-divider {
+  opacity: 0.7;
+  margin: 5px;
+}
+
+.room-error {
+  color: #ffaaaa;
+}
+
+
+/* =========================
+   GAME TABLE
+========================= */
+
+.game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 600px;
+
+  background: #14532d;
+
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+
+/* =========================
+   ROOM INFORMATION
+========================= */
+
+.room-info {
+  position: absolute;
+
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 8px 16px;
+
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+
+  color: white;
+  font-size: 14px;
+
+  z-index: 1000;
+  white-space: nowrap;
+}
+
+.room-info strong {
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: #facc15;
+}
+
+.game-error {
+  position: absolute;
+
+  top: 50px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  color: #ffaaaa;
+  z-index: 1000;
+}
+
+
+/* =========================
+   BOARD
+========================= */
+
+.game-board {
+  position: absolute;
+
+  left: 15%;
+  right: 15%;
+
+  top: 18%;
+  bottom: 18%;
+
+  border: 3px dashed rgba(255, 255, 255, 0.65);
+
+  border-radius: 24px;
+
+  background: rgba(0, 0, 0, 0.08);
+
+  overflow: visible;
+}
+
+
+/* =========================
+   PLAYERS
+========================= */
+
+.player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-name {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.you-label {
+  color: #facc15;
+}
+
+
+/* TOP PLAYER */
+
+.top-player {
+  position: absolute;
+
+  top: 70px;
+  left: 50%;
+
+  transform: translateX(-50%);
+}
+
+
+/* BOTTOM PLAYER */
+
+.bottom-player {
+  position: absolute;
+
+  bottom: 10px;
+  left: 50%;
+
+  transform: translateX(-50%);
+}
+
+
+/* LEFT PLAYER */
+
+.left-player {
+  position: absolute;
+
+  left: 10px;
+  top: 50%;
+
+  transform: translateY(-50%);
+}
+
+
+/* RIGHT PLAYER */
+
+.right-player {
+  position: absolute;
+
+  right: 10px;
+  top: 50%;
+
+  transform: translateY(-50%);
+}
+
+
+/* =========================
+   OPPONENT CARD STACK
+========================= */
+
+.opponent-hand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grouped-cards {
+  position: relative;
+
+  width: 70px;
+  height: 100px;
+}
+
+.stack-card {
+  position: absolute;
+
+  width: 65px;
+  height: 95px;
+
+  border-radius: 8px;
+
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #222,
+      #222 5px,
+      #444 5px,
+      #444 10px
+    );
+
+  border: 3px solid white;
+  outline: 1px solid #222;
+}
+
+.stack-1 {
+  left: -6px;
+  top: 3px;
+}
+
+.stack-2 {
+  left: -3px;
+  top: 1px;
+}
+
+.stack-3 {
+  left: 0;
+  top: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: white;
+  font-size: 14px;
+}
+
+.stack-3 span {
+  background: rgba(0, 0, 0, 0.6);
+
+  padding: 4px 8px;
+
+  border-radius: 12px;
+}
+
+
+/* =========================
+   PLAYER HAND
+========================= */
+
+.hand {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 100px;
+
+  padding: 5px;
+}
+
+
+/* =========================
+   CARD
+========================= */
+
+.card {
+  width: 65px;
+  height: 95px;
+
+  margin-left: 4px;
+
+  border-radius: 8px;
+
+  border: 1px solid #aaa;
+
+  background: white;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  color: black;
+
+  font-size: 20px;
+  font-weight: bold;
+
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+
+  cursor: grab;
+
+  touch-action: none;
+
+  position: relative;
+
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.35);
+}
+
+.card.red {
+  color: #d00000;
+}
+
+
+/* =========================
+   DRAGGING CARD
+========================= */
+
+.dragging-card {
+  position: fixed;
+
+  z-index: 9999;
+
+  pointer-events: none;
+
+  transform: rotate(3deg);
+
+  margin: 0;
+}
+
+
+/* =========================
+   BOARD CARDS
+========================= */
+
+.game-board .card {
+  position: absolute;
+
+  margin: 0;
+
+  cursor: grab;
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 700px) {
+
+  .game {
+    min-height: 500px;
+  }
+
+  .card,
+  .stack-card {
+    width: 48px;
+    height: 70px;
+  }
+
+  .grouped-cards {
+    width: 52px;
+    height: 75px;
+  }
+
+  .game-board {
+    left: 8%;
+    right: 8%;
+
+    top: 20%;
+    bottom: 20%;
+  }
+
+  .left-player,
+  .right-player {
+    display: none;
+  }
+
+  .hand {
+    max-width: 280px;
+    flex-wrap: wrap;
+  }
+}
